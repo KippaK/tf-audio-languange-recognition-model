@@ -3,9 +3,14 @@
 * [Available models and languages](#available-models-and-languages)
 * [Environment Setup](#environment-setup)
 * [Gantt chart for project planning](#gantt-chart-for-project-planning)
+* [File Structure](#file-structure)
+* [How It Works](#how-it-works)
+* [File Details](#file-details)
+* [Usage Instructions](#usage-instructions)
+* [Expected Results](#expected-results)
 
 ## Objective 
-Spoken Language Identification (LID) is defined as detecting language from an audio clip by an unknown speaker, regardless of gender, manner of speaking, and distinct age speaker.
+Spoken Language Identification (LID) is defined as detecting language from an audio clip by an unknown speaker, regardless of gender, manner of speaking, and distinct age speaker. Deep learning system for classifying audio as Finnish or English using CNN and mel spectrograms.
 
 ## Available models and languages
 **FLEURS dataset** downloads can be found here: [Downloads](https://www.tensorflow.org/datasets/catalog/xtreme_s)
@@ -22,3 +27,147 @@ soundfile==0.13.1</br>
 The project schedule and milestones are documented in an Excel Gantt chart.
 You can open it directly from OneDrive:
 [Open Gantt Chart (Excel)](https://1drv.ms/x/c/3c93911affd8d37b/ES31cw5MhRpEt13RNmkHWf4BVTB_VWwjtZepYwrf6UNFwQ?e=m4AKMq&nav=MTVfezAwMDAwMDAwLTAwMDEtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMH0)
+
+## File Structure
+
+src/
+├── model.py                 # CNN architecture for audio classification
+├── prepare_training_data.py # Model training pipeline
+├── main.py                  # Model testing and predictions
+├── test_model.py            # Performance evaluation
+└── save_test_samples.py     # Test data generation
+
+data/
+└── test/                    # Sample audio files for testing
+
+## How It Works
+* Audio Processing: Converts WAV files to mel spectrograms
+
+* Feature Extraction: Uses STFT and mel frequency scaling
+
+* Classification: CNN model identifies language patterns
+
+* Output: Predicts Finnish/English with confidence scores
+
+## File Details
+
+* Input: 16kHz WAV files (2-second segments)
+
+* Output: Language prediction with accuracy metrics
+
+* Model: 3-layer CNN with dropout regularization
+
+* Training: ~10 minutes, ~85% accuracy on test data
+
+**Test files should be placed in data/test/ with naming convention:**
+
+* su_*.wav for Finnish samples
+
+* en_*.wav for English samples
+
+
+# Complete Project Setup and Usage Guide
+
+
+## 1. Create Environment in Anaconda Prompt
+
+- Open Anaconda Prompt from Windows Start menu
+
+- Create new environment with Python 3.9
+conda create -n languagerecognition python=3.9
+
+- Activate the environment
+conda activate languagerecognition
+
+
+## 2. Install Required Dependencies
+
+- Install TensorFlow using Conda (recommended for Windows)
+conda install tensorflow
+
+- Install tensorflow-datasets
+conda install -c conda-forge tensorflow-datasets
+
+- Install additional required libraries
+pip install soundfile numpy
+
+- Alternative: If Conda installation fails, use pip
+- pip install tensorflow-cpu tensorflow-datasets soundfile numpy
+
+## 3. Verify Installation
+
+- Test that all libraries work correctly
+
+python -c "import tensorflow as tf; print('TensorFlow OK - Version:', tf.__version__)"
+python -c "import tensorflow_datasets as tfds; print('TensorFlow Datasets OK')"
+python -c "import soundfile; import numpy; print('SoundFile & NumPy OK')"
+
+## 4. Clone the Project from GitHub
+
+- Navigate to your desired directory
+- Clone the project
+git clone https://github.com/KippaK/tf-audio-languange-recognition-model.git
+
+- Navigate to project directory
+cd tf-audio-languange-recognition-model
+
+## 5. Project Usage
+
+**Generate Test Data**
+
+python src/save_test_samples.py
+*Creates 10 Finnish and 10 English audio samples in data/test/ directory*
+
+**Train the model**
+python src/prepare_training_data.py
+*Trains the CNN model (~10 minutes) and saves the best version as best_model.keras*
+
+**Test the Model**
+
+- Test with data/test/ audio files
+python src/main.py
+
+- Or run comprehensive evaluation
+python src/test_model.py
+
+
+# Expected Results
+
+## Training Output Example
+
+TRAINING RESULTS:
+Training accuracy: 0.9685
+Validation accuracy: 0.9525
+EXCELLENT performance!
+
+## Sample Predictions
+
+en_001.wav | Prediction: English (95.3%) | CORRECT (True: English)
+en_002.wav | Prediction: English (100.0%) | CORRECT (True: English)
+en_003.wav | Prediction: English (67.8%) | CORRECT (True: English)
+su_001.wav | Prediction: Finnish (100.0%) | CORRECT (True: Finnish)
+su_002.wav | Prediction: Finnish (100.0%) | CORRECT (True: Finnish)
+su_003.wav | Prediction: English (63.7%) | WRONG (True: Finnish)
+
+==================================================
+SUMMARY:
+==================================================
+Accuracy: 17/20 (85.0%)
+
+Finnish accuracy: 10/10 (100.0%)
+English accuracy: 7/10 (70.0%)
+
+## Test Evaluation
+
+TEST RESULTS:
+Test accuracy: 0.5850 (58.50%)
+Test loss: 1.3392
+ACCEPTABLE generalization
+
+## Performance Levels
+
+* EXCELLENT: >75% validation accuracy
+* GOOD: 65-75% validation accuracy
+* ACCEPTABLE: 55-65% validation accuracy
+* NEEDS IMPROVEMENT: <55% validation accuracy
+
