@@ -31,14 +31,14 @@ You can open it directly from OneDrive:
 ## File Structure
 
 src/
-├── model.py                 # CNN architecture for audio classification
-├── prepare_training_data.py # Model training pipeline
-├── main.py                  # Model testing and predictions
-├── test_model.py            # Performance evaluation
-└── save_test_samples.py     # Test data generation
-
-data/
-└── test/                    # Sample audio files for testing
+├── model.py                 # CNN architecture for audio classification</br>
+├── prepare_training_data.py # Model training pipeline</br>
+├── main.py                  # Model testing and predictions</br>
+├── test_model.py            # Performance evaluation</br>
+└── save_test_samples.py     # Test data generation</br>
+</br>
+data/</br>
+└── test/                    # Sample audio files for testing</br>
 
 ## How It Works
 * Audio Processing: Converts WAV files to mel spectrograms
@@ -115,11 +115,11 @@ cd tf-audio-languange-recognition-model
 
 **Generate Test Data**
 
-python src/save_test_samples.py
+python src/save_test_samples.py</br>
 *Creates 10 Finnish and 10 English audio samples in data/test/ directory*
 
 **Train the model**
-python src/prepare_training_data.py
+python src/prepare_training_data.py</br>
 *Trains the CNN model (~10 minutes) and saves the best version as best_model.keras*
 
 **Test the Model**
@@ -135,34 +135,33 @@ python src/test_model.py
 
 ## Training Output Example
 
-TRAINING RESULTS:
-Training accuracy: 0.9685
-Validation accuracy: 0.9525
-EXCELLENT performance!
+TRAINING RESULTS:</br>
+Training accuracy: 0.9685</br>
+Validation accuracy: 0.9525</br>
+EXCELLENT performance!</br>
 
 ## Sample Predictions
 
-en_001.wav | Prediction: English (95.3%) | CORRECT (True: English)
-en_002.wav | Prediction: English (100.0%) | CORRECT (True: English)
-en_003.wav | Prediction: English (67.8%) | CORRECT (True: English)
-su_001.wav | Prediction: Finnish (100.0%) | CORRECT (True: Finnish)
-su_002.wav | Prediction: Finnish (100.0%) | CORRECT (True: Finnish)
-su_003.wav | Prediction: English (63.7%) | WRONG (True: Finnish)
+en_001.wav | Prediction: English (95.3%) | CORRECT (True: English)</br>
+en_002.wav | Prediction: English (100.0%) | CORRECT (True: English)</br>
+en_003.wav | Prediction: English (67.8%) | CORRECT (True: English)</br>
+su_001.wav | Prediction: Finnish (100.0%) | CORRECT (True: Finnish)</br>
+su_002.wav | Prediction: Finnish (100.0%) | CORRECT (True: Finnish)</br>
+su_003.wav | Prediction: English (63.7%) | WRONG (True: Finnish)</br>
 
-==================================================
+
 SUMMARY:
-==================================================
 Accuracy: 17/20 (85.0%)
 
-Finnish accuracy: 10/10 (100.0%)
-English accuracy: 7/10 (70.0%)
+Finnish accuracy: 10/10 (100.0%)</br>
+English accuracy: 7/10 (70.0%)</br>
 
 ## Test Evaluation
 
-TEST RESULTS:
-Test accuracy: 0.5850 (58.50%)
-Test loss: 1.3392
-ACCEPTABLE generalization
+TEST RESULTS:</br>
+Test accuracy: 0.5850 (58.50%)</br>
+Test loss: 1.3392</br>
+ACCEPTABLE generalization</br>
 
 ## Performance Levels
 
