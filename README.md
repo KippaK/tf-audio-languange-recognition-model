@@ -21,4 +21,4 @@ soundfile==0.13.1</br>
 ## Gantt chart for project planning
 The project schedule and milestones are documented in an Excel Gantt chart.
 You can open it directly from OneDrive:
-[Open Gantt Chart(Excel)](https://1drv.ms/x/c/3c93911affd8d37b/ES31cw5MhRpEt13RNmkHWf4BVTB_VWwjtZepYwrf6UNFwQ?e=m4AKMq&nav=MTVfezAwMDAwMDAwLTAwMDEtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMH0)
+[Open Gantt Chart (Excel)](https://1drv.ms/x/c/3c93911affd8d37b/ES31cw5MhRpEt13RNmkHWf4BVTB_VWwjtZepYwrf6UNFwQ?e=m4AKMq&nav=MTVfezAwMDAwMDAwLTAwMDEtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMH0)
