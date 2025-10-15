@@ -30,7 +30,7 @@ You can open it directly from OneDrive:
 
 ## File Structure
 
-src/
+src/</br>
 ├── model.py                 # CNN architecture for audio classification</br>
 ├── prepare_training_data.py # Model training pipeline</br>
 ├── main.py                  # Model testing and predictions</br>
@@ -73,22 +73,22 @@ data/</br>
 
 - Open Anaconda Prompt from Windows Start menu
 
-- Create new environment with Python 3.9
+- Create new environment with Python 3.9</br>
 conda create -n languagerecognition python=3.9
 
-- Activate the environment
+- Activate the environment</br>
 conda activate languagerecognition
 
 
 ## 2. Install Required Dependencies
 
-- Install TensorFlow using Conda (recommended for Windows)
+- Install TensorFlow using Conda (recommended for Windows)</br>
 conda install tensorflow
 
-- Install tensorflow-datasets
+- Install tensorflow-datasets</br>
 conda install -c conda-forge tensorflow-datasets
 
-- Install additional required libraries
+- Install additional required libraries</br>
 pip install soundfile numpy
 
 - Alternative: If Conda installation fails, use pip
@@ -98,17 +98,17 @@ pip install soundfile numpy
 
 - Test that all libraries work correctly
 
-python -c "import tensorflow as tf; print('TensorFlow OK - Version:', tf.__version__)"
-python -c "import tensorflow_datasets as tfds; print('TensorFlow Datasets OK')"
-python -c "import soundfile; import numpy; print('SoundFile & NumPy OK')"
+python -c "import tensorflow as tf; print('TensorFlow OK - Version:', tf.__version__)"</br>
+python -c "import tensorflow_datasets as tfds; print('TensorFlow Datasets OK')"</br>
+python -c "import soundfile; import numpy; print('SoundFile & NumPy OK')"</br>
 
 ## 4. Clone the Project from GitHub
 
 - Navigate to your desired directory
-- Clone the project
+- Clone the project</br>
 git clone https://github.com/KippaK/tf-audio-languange-recognition-model.git
 
-- Navigate to project directory
+- Navigate to project directory</br>
 cd tf-audio-languange-recognition-model
 
 ## 5. Project Usage
@@ -119,15 +119,16 @@ python src/save_test_samples.py</br>
 *Creates 10 Finnish and 10 English audio samples in data/test/ directory*
 
 **Train the model**
+
 python src/prepare_training_data.py</br>
 *Trains the CNN model (~10 minutes) and saves the best version as best_model.keras*
 
 **Test the Model**
 
-- Test with data/test/ audio files
+- Test with data/test/ audio files</br>
 python src/main.py
 
-- Or run comprehensive evaluation
+- Or run comprehensive evaluation</br>
 python src/test_model.py
 
 
