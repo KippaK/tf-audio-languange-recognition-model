@@ -73,8 +73,8 @@ data/</br>
 
 - Open Anaconda Prompt from Windows Start menu
 
-- Create new environment with Python 3.9</br>
-conda create -n languagerecognition python=3.9
+- Create new environment with Python 3.10</br>
+conda create -n languagerecognition python=3.10
 
 - Activate the environment</br>
 conda activate languagerecognition
