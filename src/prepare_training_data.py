@@ -1,8 +1,15 @@
+import os
+
+# Disable oneDNN warnings
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from model import build_model
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 import numpy as np
+import shutil
 
 # Configuration
 SAMPLE_RATE = 16000
@@ -103,7 +110,7 @@ def main():
     # More patient callbacks
     callbacks = [
         EarlyStopping(monitor='val_accuracy', patience=8, restore_best_weights=True),
-        ModelCheckpoint('best_model.keras', monitor='val_accuracy', save_best_only=True)
+        ModelCheckpoint('best_model.keras', monitor='val_accuracy', save_best_only=True, verbose=1)
     ]
     
     print("Starting training...")
@@ -115,8 +122,17 @@ def main():
         verbose=1
     )
     
+    # Save the final model
     model.save("trained_model.keras")
     print("Model saved: trained_model.keras")
+    
+    # Ensure best_model.keras exists - copy if ModelCheckpoint didn't save it
+    if not os.path.exists('best_model.keras'):
+        print("Creating best_model.keras from trained model...")
+        shutil.copy('trained_model.keras', 'best_model.keras')
+        print("Best model created: best_model.keras")
+    else:
+        print("Best model already exists: best_model.keras")
     
     final_train_acc = history.history['accuracy'][-1]
     final_val_acc = history.history['val_accuracy'][-1]
