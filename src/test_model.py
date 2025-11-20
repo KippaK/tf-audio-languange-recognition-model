@@ -13,6 +13,7 @@ from tensorflow.keras.models import load_model
 from prepare_training_data import create_mel_spectrogram
 import numpy as np
 from colorama import init, Fore, Style
+from config import LANGUAGES
 
 # Alustetaan colorama Windows-konsolin värejä varten
 init()
@@ -24,31 +25,79 @@ def test_model():
     print("Testing model performance with test data...")
     
     try:
-        # Ladataan testidata FLEURS-datasetistä
-        fi_test = tfds.load("xtreme_s/fleurs.fi_fi", split="test", as_supervised=True)
-        en_test = tfds.load("xtreme_s/fleurs.en_us", split="test", as_supervised=True)
+        test_datasets = []
+        label_map = {}
         
-        # Rajataan testidata kohtuulliseen kokoon
-        fi_test = fi_test.take(200)
-        en_test = en_test.take(200)
+        # Ladataan ja käsitellään jokaisen kielen testidata
+        for i, lang in enumerate(LANGUAGES):
+            dataset_name = lang["dataset"]
+            label = i
+            ds = tfds.load(dataset_name, split="test", as_supervised=True)
+            
+            # Rajataan testidata kohtuulliseen kokoon
+            take_count = 200  # voit muuttaa tätä tarvittaessa
+            ds = ds.take(take_count)
+            
+            # Lisätään label ja muokataan mel-spektrogrammiksi
+            ds = ds.map(lambda x, y: (create_mel_spectrogram(x), label))
+            
+            test_datasets.append(ds)
+            label_map[i] = lang["name"]
         
-        print(f"Test samples - Finnish: {len(list(fi_test))}, English: {len(list(en_test))}")
-        
-        # Käsitellään testidata samalla tavalla kuin koulutusdata
-        fi_test = fi_test.map(lambda x, y: (create_mel_spectrogram(x), 0))
-        en_test = en_test.map(lambda x, y: (create_mel_spectrogram(x), 1))
-        
-        # Yhdistetään testidatasettit tasapainoisesti
-        test_ds = tf.data.Dataset.sample_from_datasets([fi_test, en_test], [0.5, 0.5])
+        # Yhdistetään testidatasetit tasapainoisesti
+        test_ds = tf.data.Dataset.sample_from_datasets(test_datasets)
         test_ds = test_ds.batch(32).prefetch(tf.data.AUTOTUNE)
         
-        # Ladataan koulutettu malli levyltä
+        # Ladataan koulutettu malli
         model = load_model("best_model.keras")
         
-        # Arvioidaan mallin suorituskyky testidatalla
+        # Arvioidaan mallin suorituskyky
         print("Running evaluation...")
         test_loss, test_accuracy = model.evaluate(test_ds, verbose=1)
-        
+    
+        # --- Lasketaan confusion matrix ---
+        print("\nLasketaan confusion matrix...")
+
+        # 1. Haetaan todelliset labelit
+        y_true = []
+        for _, y in test_ds:
+            y_true.extend(y.numpy())
+        y_true = np.array(y_true)
+
+        # 2. Mallin ennusteet
+        y_pred_prob = model.predict(test_ds)
+        y_pred = np.argmax(y_pred_prob, axis=1)
+
+        # 3. Lasketaan confusion matrix
+        from sklearn.metrics import confusion_matrix
+        cm = confusion_matrix(y_true, y_pred)
+
+        print("\nConfusion matrix:")
+        print(cm)
+
+        # 4. (Valinnainen) Tulostetaan nimillä varustettua taulukkoa varten
+        print("\nKielet (label index -> nimi):")
+        for idx, name in label_map.items():
+            print(f"{idx}: {name}")
+
+        # 5. (Valinnainen) Piirrä heatmap, jos haluat
+        try:
+            import matplotlib.pyplot as plt
+            import seaborn as sns
+
+            plt.figure(figsize=(10, 7))
+            sns.heatmap(cm, annot=True, fmt='d', cmap="Blues",
+                        xticklabels=[label_map[i] for i in range(len(label_map))],
+                        yticklabels=[label_map[i] for i in range(len(label_map))])
+            plt.xlabel("Ennustettu")
+            plt.ylabel("Todellinen")
+            plt.title("Confusion Matrix")
+            plt.tight_layout()
+            plt.show()
+        except Exception:
+            print("Ei voitu piirtää heatmappia (matplotlib/seaborn puuttuu)")
+
+
         # Värikoodataan tarkkuus tulosten perusteella
         if test_accuracy >= 0.80:
             accuracy_color = Fore.GREEN
@@ -58,14 +107,15 @@ def test_model():
             accuracy_color = Fore.RED
         
         # Tulostetaan testitulokset väreillä
+        total_samples = sum([len(list(ds)) for ds in test_datasets])
         print(f"\n{'='*50}")
         print(f"TEST RESULTS:")
         print(f"{'='*50}")
         print(f"Test accuracy: {accuracy_color}{test_accuracy:.4f} ({test_accuracy*100:.2f}%){Style.RESET_ALL}")
         print(f"Test loss: {test_loss:.4f}")
-        print(f"Test samples total: {len(list(fi_test)) + len(list(en_test))}")
+        print(f"Test samples total: {total_samples}")
         
-        # Arvioidaan mallin yleistävyys testitulosten perusteella
+        # Arvioidaan mallin yleistävyys
         print(f"\nGENERALIZATION ASSESSMENT:")
         if test_accuracy >= 0.80:
             print(f"{Fore.GREEN}EXCELLENT generalization{Style.RESET_ALL}")

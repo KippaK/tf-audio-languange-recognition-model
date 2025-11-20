@@ -11,6 +11,8 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLRO
 import numpy as np
 import shutil
 
+from config import LANGUAGES, LANGUAGE_WEIGHTS
+
 # Konfiguraatioparametrit
 SAMPLE_RATE = 16000
 DURATION = 2
@@ -140,42 +142,65 @@ def create_mel_spectrogram(audio, augment=False):
 
 def load_data():
     """
-    Parannettu datan lataus paremmalla tasapainolla.
+    Lataa kaikki kielet config.py-tiedostosta.
+    Luo tasapainoisen treeni- ja validointidatan.
     """
     print("Loading data...")
-    
+
+    train_datasets = []
+    val_datasets = []
+
     try:
-        # Käytetään vähemmän dataa mutta paremmalla tasapainolla
-        fi_train = tfds.load("xtreme_s/fleurs.fi_fi", split="train[:1200]", as_supervised=True)
-        fi_val = tfds.load("xtreme_s/fleurs.fi_fi", split="validation[:300]", as_supervised=True)
-        
-        en_train = tfds.load("xtreme_s/fleurs.en_us", split="train[:1200]", as_supervised=True)
-        en_val = tfds.load("xtreme_s/fleurs.en_us", split="validation[:300]", as_supervised=True)
-        
-        print("Data loaded successfully")
-        print(f"Finnish - Train: {len(list(fi_train))}, Val: {len(list(fi_val))}")
-        print(f"English - Train: {len(list(en_train))}, Val: {len(list(en_val))}")
-        
+        for label_index, lang in enumerate(LANGUAGES):
+            name        = lang["name"]
+            dataset     = lang["dataset"]
+            train_split = f"train[:{lang["train_split"]}]"
+            val_split   = f"validation[:{lang["val_split"]}]"
+
+            print(f"Ladataan {name} dataa... ({dataset})")
+
+            # Lataa treeni- ja validointidata
+            train_ds = tfds.load(dataset, split=train_split, as_supervised=True)
+            val_ds   = tfds.load(dataset, split=val_split,   as_supervised=True)
+
+            # Tulosta kokoja
+            train_count = len(list(train_ds))
+            val_count   = len(list(val_ds))
+            print(f"  Train: {train_count}, Val: {val_count}")
+
+            # Mapataan spectrogram + label jokaiselle kielelle
+            train_ds = train_ds.map(
+                lambda audio, text, li=label_index:
+                    (create_mel_spectrogram(audio, augment=True), li)
+            )
+            val_ds = val_ds.map(
+                lambda audio, text, li=label_index:
+                    (create_mel_spectrogram(audio, augment=False), li)
+            )
+
+            train_datasets.append(train_ds)
+            val_datasets.append(val_ds)
+
+        print("Kaikkien kielten data ladattu onnistuneesti.")
+
     except Exception as e:
-        print(f"Error loading data: {e}")
+        print(f"Virhe datan latauksessa: {e}")
         return None, None
-    
-    # Koulutusdataan augmentaatio, validointiin ei
-    fi_train = fi_train.map(lambda audio, text: (create_mel_spectrogram(audio, augment=True), 0))
-    fi_val = fi_val.map(lambda audio, text: (create_mel_spectrogram(audio, augment=False), 0))
-    
-    en_train = en_train.map(lambda audio, text: (create_mel_spectrogram(audio, augment=True), 1))
-    en_val = en_val.map(lambda audio, text: (create_mel_spectrogram(audio, augment=False), 1))
-    
-    # Yhdistä datasettit TÄYSIN tasapainoisesti
-    train_ds = tf.data.Dataset.sample_from_datasets([fi_train, en_train], weights=[0.5, 0.5])
-    val_ds = tf.data.Dataset.sample_from_datasets([fi_val, en_val], weights=[0.5, 0.5])
-    
+
+    # --- Luo tasapainoinen treenidatasetti ---
+    # Joka kieli saa saman painon
+    num_langs = len(train_datasets)
+    weights = [1.0 / num_langs] * num_langs
+
+    train_ds = tf.data.Dataset.sample_from_datasets(train_datasets, weights=weights)
+    val_ds   = tf.data.Dataset.sample_from_datasets(val_datasets,   weights=weights)
+
     # Optimoi dataputki
-    train_ds = train_ds.shuffle(2000).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-    val_ds = val_ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-    
+    train_ds = train_ds.shuffle(3000).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+    val_ds   = val_ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+
     return train_ds, val_ds
+
 
 def main():
     """Päivitetty pääfunktio class weighteilla."""
@@ -204,11 +229,8 @@ def main():
     
     # Rakenna parannettu malli
     print("Building model...")
-    model = build_model(input_shape=input_shape, num_classes=2)
+    model = build_model(input_shape=input_shape, num_classes=len(LANGUAGES))
     
-    # Class weights tasapainottamaan biasia
-    # Koska suomi (0) menee useammin väärin, annetaan sille enemmän painoa
-    class_weight = {0: 1.2, 1: 0.8}  # Suomi saa 20% enemmän painoa
     
     # Parannetut callbackit
     callbacks = [
@@ -224,7 +246,7 @@ def main():
         epochs=EPOCHS,
         validation_data=val_ds,
         callbacks=callbacks,
-        class_weight=class_weight,  # Lisätty class weight
+        class_weight=LANGUAGE_WEIGHTS,  # Lisätty class weight
         verbose=1
     )
     

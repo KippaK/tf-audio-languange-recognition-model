@@ -10,6 +10,8 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 from colorama import init, Fore, Style
 
+from config import LABELS, PREFIX_MAP
+
 # Alustetaan colorama Windows-konsolin väritystä varten
 init()
 
@@ -27,7 +29,7 @@ class LanguageDetector:
             self.sample_rate = 16000
             self.fixed_length = self.sample_rate * 2  # 2 sekuntia
             self.n_mels = 64  # Mel-taajuuksien määrä
-            self.labels = ["Finnish", "English"]  # Tunnistettavat kielet
+            self.labels = LABELS
         except Exception as e:
             print(f"Error loading model: {e}")
             self.model = None
@@ -185,10 +187,11 @@ def main():
         if language:
             # Määritä todellinen kieli tiedostonimen perusteella
             true_language = None
-            if filename.startswith('su_'):
-                true_language = "Finnish"
-            elif filename.startswith('en_'):
-                true_language = "English"
+            for prefix, lang in PREFIX_MAP.items():
+                if filename.startswith(prefix):
+                    true_language = lang
+                    break
+
             
             # Hae tekstitys tiedostolle
             transcript = transcripts.get(filename, "No transcript available")
