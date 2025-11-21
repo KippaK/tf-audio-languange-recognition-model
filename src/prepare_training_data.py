@@ -26,18 +26,18 @@ def augment_audio(audio):
     Tehostettu data-augmentaatio äänelle.
     """
     original_audio = audio
-    
+
     # 1. Kohina
     if tf.random.uniform([]) > 0.6:
         noise_std = tf.random.uniform([], 0.001, 0.02)
         noise = tf.random.normal(tf.shape(audio), stddev=noise_std)
         audio = audio + noise
-    
+
     # 2. Vahvistuksen muutos
     if tf.random.uniform([]) > 0.6:
         gain = tf.random.uniform([], 0.6, 1.4)
         audio = audio * gain
-    
+
     # 3. Frekvenssifiltteri simulointi
     if tf.random.uniform([]) > 0.7:
         # Yksinkertainen high-pass/low-pass efekti
@@ -48,16 +48,16 @@ def augment_audio(audio):
         else:
             # Low-pass efekti (vähennetään korkeita taajuuksia)
             audio = audio * tf.random.uniform([], 0.7, 1.0)
-    
+
     # 4. Aikavenytys/nopeutus käyttäen FFT:ta
     if tf.random.uniform([]) > 0.8:
         rate = tf.random.uniform([], 0.8, 1.2)
         current_length = tf.shape(audio)[0]
         new_length = tf.cast(tf.cast(current_length, tf.float32) * rate, tf.int32)
-        
+
         # Resample FFT:llä
         audio_fft = tf.signal.fft(tf.cast(audio, tf.complex64))
-        
+
         if rate > 1.0:  # Nopeutus
             # Leikkaa korkeimmat taajuudet
             keep_freqs = tf.cast(tf.cast(tf.shape(audio_fft)[0], tf.float32) / rate, tf.int32)
@@ -70,16 +70,16 @@ def augment_audio(audio):
             orig_freqs = tf.shape(audio_fft)[0]
             new_freqs = tf.cast(tf.cast(orig_freqs, tf.float32) * rate, tf.int32)
             keep_freqs = new_freqs // 2
-            
+
             # Pidä alku- ja lopputaajuudet
             first_half = audio_fft[:keep_freqs]
             second_half = audio_fft[orig_freqs - keep_freqs:]
             zeros = tf.zeros([new_freqs - 2 * keep_freqs], dtype=tf.complex64)
             audio_fft = tf.concat([first_half, zeros, second_half], axis=0)
-        
+
         audio = tf.math.real(tf.signal.ifft(audio_fft))
         audio = tf.reshape(audio, [new_length])
-    
+
     # 5. Varmista että ääni pysyy vakiopituisena
     audio_len = tf.shape(audio)[0]
     audio = tf.cond(
@@ -87,10 +87,10 @@ def augment_audio(audio):
         lambda: audio[:FIXED_LENGTH],
         lambda: tf.pad(audio, [[0, FIXED_LENGTH - audio_len]])
     )
-    
+
     # 6. Rajaa äänenvoimakkuus
     audio = tf.clip_by_value(audio, -1.0, 1.0)
-    
+
     return audio
 def create_mel_spectrogram(audio, augment=False):
     """
@@ -100,7 +100,7 @@ def create_mel_spectrogram(audio, augment=False):
     audio = tf.cast(audio, tf.float32)
     max_val = tf.reduce_max(tf.abs(audio)) + 1e-9
     audio = audio / max_val
-    
+
     # Täytä tai leikkaa ääni vakiopituiseksi
     audio_len = tf.shape(audio)[0]
     audio = tf.cond(
@@ -108,15 +108,15 @@ def create_mel_spectrogram(audio, augment=False):
         lambda: audio[:FIXED_LENGTH],
         lambda: tf.pad(audio, [[0, FIXED_LENGTH - audio_len]])
     )
-    
+
     # Data-augmentaatio vain koulutusdatalle
     if augment:
         audio = augment_audio(audio)
-    
+
     # Laske lyhytaikainen Fourier-muunnos
     stft = tf.signal.stft(audio, frame_length=512, frame_step=256, fft_length=512)
     spectrogram = tf.abs(stft)
-    
+
     # Luo mel-suodatinmatriisi
     mel_matrix = tf.signal.linear_to_mel_weight_matrix(
         num_mel_bins=N_MELS,
@@ -125,19 +125,19 @@ def create_mel_spectrogram(audio, augment=False):
         lower_edge_hertz=80.0,
         upper_edge_hertz=7600.0
     )
-    
+
     # Muunna mel-asteikolle
     mel_spec = tf.tensordot(spectrogram, mel_matrix, 1)
     mel_spec = tf.math.log(mel_spec + 1e-6)
-    
+
     # Normalisoi spektrogrammi
     mean = tf.reduce_mean(mel_spec)
     std = tf.math.reduce_std(mel_spec)
     mel_spec = (mel_spec - mean) / (std + 1e-6)
-    
+
     # Lisää kanavaulottuvuus
     mel_spec = tf.expand_dims(mel_spec, -1)
-    
+
     return mel_spec
 
 def load_data():
@@ -204,7 +204,7 @@ def load_data():
 
 def main():
     """Päivitetty pääfunktio class weighteilla."""
-    
+
     # Poistaa edelliset mallit
     for model_file in ['best_model.keras', 'trained_model.keras']:
         if os.path.exists(model_file):
@@ -213,32 +213,32 @@ def main():
 
     print("AUDIO LANGUAGE DETECTION")
     print("=" * 50)
-    
+
     # Lataa ja valmistele data
     train_ds, val_ds = load_data()
-    
+
     if train_ds is None:
         print("Data loading failed")
         return
-    
+
     # Hae mallin syöteformaatti
     for x, y in train_ds.take(1):
         input_shape = x.shape[1:]
         print(f"Input shape: {input_shape}")
         break
-    
+
     # Rakenna parannettu malli
     print("Building model...")
     model = build_model(input_shape=input_shape, num_classes=len(LANGUAGES))
-    
-    
+
+
     # Parannetut callbackit
     callbacks = [
         EarlyStopping(monitor='val_accuracy', patience=12, restore_best_weights=True, verbose=1),
-        ModelCheckpoint('best_model.keras', monitor='val_accuracy', save_best_only=True, verbose=1),
+        ModelCheckpoint('best_model_tf', monitor='val_accuracy', save_best_only=True, verbose=1, save_format='tf'),
         ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=6, min_lr=1e-7, verbose=1)
     ]
-    
+
     # Kouluta malli class weighteilla
     print("Starting training with class weights...")
     history = model.fit(
@@ -249,27 +249,19 @@ def main():
         class_weight=LANGUAGE_WEIGHTS,  # Lisätty class weight
         verbose=1
     )
-    
+
     # Tallenna lopullinen malli
-    model.save("trained_model.keras")
-    print("Model saved: trained_model.keras")
-    
-    # Varmista että paras malli on olemassa
-    if not os.path.exists('best_model.keras'):
-        print("Creating best_model.keras from trained model...")
-        shutil.copy('trained_model.keras', 'best_model.keras')
-        print("Best model created: best_model.keras")
-    else:
-        print("Best model already exists: best_model.keras")
-    
+    model.save("trained_tf", save_format='tf')
+    print("Model saved: trained_model_tf (TensorFlow SavedModel format)")
+
     # Analysoi tulokset
     best_val_acc = max(history.history['val_accuracy'])
     train_acc = history.history['accuracy'][-1]
-    
+
     print("\nTRAINING RESULTS:")
     print(f"Training accuracy: {train_acc:.4f}")
     print(f"Best validation accuracy: {best_val_acc:.4f}")
-    
+
     # Suorituskyvyn arviointi
     if best_val_acc > 0.80:
         print("EXCELLENT performance!")
@@ -284,4 +276,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    

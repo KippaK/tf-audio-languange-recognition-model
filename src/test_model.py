@@ -23,38 +23,38 @@ def test_model():
     Testaa koulutetun mallin suorituskykyä näkemättömällä testidatalla.
     """
     print("Testing model performance with test data...")
-    
+
     try:
         test_datasets = []
         label_map = {}
-        
+
         # Ladataan ja käsitellään jokaisen kielen testidata
         for i, lang in enumerate(LANGUAGES):
             dataset_name = lang["dataset"]
             label = i
             ds = tfds.load(dataset_name, split="test", as_supervised=True)
-            
+
             # Rajataan testidata kohtuulliseen kokoon
             take_count = 200  # voit muuttaa tätä tarvittaessa
             ds = ds.take(take_count)
-            
+
             # Lisätään label ja muokataan mel-spektrogrammiksi
             ds = ds.map(lambda x, y: (create_mel_spectrogram(x), label))
-            
+
             test_datasets.append(ds)
             label_map[i] = lang["name"]
-        
+
         # Yhdistetään testidatasetit tasapainoisesti
         test_ds = tf.data.Dataset.sample_from_datasets(test_datasets)
         test_ds = test_ds.batch(32).prefetch(tf.data.AUTOTUNE)
-        
-        # Ladataan koulutettu malli
-        model = load_model("best_model.keras")
-        
-        # Arvioidaan mallin suorituskyky
+
+        # Ladataan koulutettu malli levyltä
+        model = load_model("trained_tf")
+
+        # Arvioidaan mallin suorituskyky testidatalla
         print("Running evaluation...")
         test_loss, test_accuracy = model.evaluate(test_ds, verbose=1)
-    
+
         # --- Lasketaan confusion matrix ---
         print("\nLasketaan confusion matrix...")
 
@@ -105,7 +105,7 @@ def test_model():
             accuracy_color = Fore.YELLOW
         else:
             accuracy_color = Fore.RED
-        
+
         # Tulostetaan testitulokset väreillä
         total_samples = sum([len(list(ds)) for ds in test_datasets])
         print(f"\n{'='*50}")
@@ -114,7 +114,7 @@ def test_model():
         print(f"Test accuracy: {accuracy_color}{test_accuracy:.4f} ({test_accuracy*100:.2f}%){Style.RESET_ALL}")
         print(f"Test loss: {test_loss:.4f}")
         print(f"Test samples total: {total_samples}")
-        
+
         # Arvioidaan mallin yleistävyys
         print(f"\nGENERALIZATION ASSESSMENT:")
         if test_accuracy >= 0.80:
@@ -125,13 +125,12 @@ def test_model():
             print(f"{Fore.YELLOW}ACCEPTABLE generalization{Style.RESET_ALL}")
         else:
             print(f"{Fore.RED}POOR generalization{Style.RESET_ALL}")
-            
+
         return test_accuracy
-        
+
     except Exception as e:
         print(f"{Fore.RED}Testing failed: {e}{Style.RESET_ALL}")
         return None
 
 if __name__ == "__main__":
     test_model()
-    
