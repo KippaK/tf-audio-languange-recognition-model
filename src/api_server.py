@@ -20,7 +20,7 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 # Load the AI model
 try:
-    detector = LanguageDetector("trained_tf")
+    detector = LanguageDetector("best_model_tf")
     print("✓ Model loaded successfully")
 except Exception as e:
     print(f"✗ Error loading model: {e}")
@@ -88,5 +88,5 @@ def analyze_audio():
 
 
 if __name__ == "__main__":
-    # ✅ Simple HTTP server — no SSL to avoid macOS issues
+    # Simple HTTP server — no SSL to avoid macOS issues
     app.run(debug=True, host="0.0.0.0", port=5001)
