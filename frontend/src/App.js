@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import './App.css';
 
 function App() {
@@ -8,6 +8,7 @@ function App() {
   const [error, setError] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
 
+  const fileInputRef = useRef(null);
   const API_URL = 'http://localhost:5001';
 
   // Drag & drop handlers
@@ -29,15 +30,12 @@ function App() {
     setIsDragging(false);
 
     const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFileSelect(files[0]);
-    }
+    if (files.length > 0) handleFileSelect(files[0]);
   };
 
+  // File input handler
   const handleFileInput = (e) => {
-    if (e.target.files.length > 0) {
-      handleFileSelect(e.target.files[0]);
-    }
+    if (e.target.files.length > 0) handleFileSelect(e.target.files[0]);
   };
 
   const handleFileSelect = (file) => {
@@ -45,7 +43,6 @@ function App() {
       setError('Only .wav files are supported');
       return;
     }
-
     setUploadedFile(file);
     setError(null);
     setResults(null);
@@ -53,7 +50,7 @@ function App() {
 
   const analyzeAudio = async () => {
     if (!uploadedFile) {
-      setError('Choose a file first');
+      setError('Drop a file first');
       return;
     }
 
@@ -69,19 +66,13 @@ function App() {
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('Analyze faled');
-      }
+      if (!response.ok) throw new Error('Analysis failed');
 
       const data = await response.json();
-
-      if (data.success) {
-        setResults(data);
-      } else {
-        setError(data.error || 'Unkown error occurred');
-      }
+      if (data.success) setResults(data);
+      else setError(data.error || 'Unknown error occurred');
     } catch (err) {
-      setError(`Virhe: ${err.message}`);
+      setError(`${err.message}`);
     } finally {
       setIsAnalyzing(false);
     }
@@ -91,20 +82,29 @@ function App() {
     <div className="App">
       <header className="app-header">
         <h1>Voice recognition</h1>
-        <p></p>
       </header>
 
       <main className="app-main">
+        {/* Hidden file input */}
+        <input
+          type="file"
+          accept=".wav"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          onChange={handleFileInput}
+        />
+
         {/* Upload Area */}
         <div
           className={`upload-area ${isDragging ? 'dragging' : ''}`}
+          onClick={() => fileInputRef.current.click()}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
           <div className="upload-content">
             <div className="upload-icon">📁</div>
-            <h2>Drop .wav here</h2>
+            <h2>Drop .wav here or click to select</h2>
           </div>
         </div>
 
@@ -136,7 +136,7 @@ function App() {
         {/* Error Message */}
         {error && (
           <div className="error-message">
-            <strong>Error</strong> {error}
+            <strong>Error:</strong> {error}
           </div>
         )}
 
@@ -157,7 +157,6 @@ function App() {
               </p>
             </div>
 
-            {/* Confidence Chart */}
             <div className="chart-container">
               <h3>Confidence for all languages</h3>
               <div className="confidence-bars">
@@ -166,9 +165,7 @@ function App() {
                     <label>{language}</label>
                     <div className="bar-container">
                       <div
-                        className={`bar ${
-                          language === results.detected_language ? 'primary' : 'secondary'
-                        }`}
+                        className={`bar ${language === results.detected_language ? 'primary' : 'secondary'}`}
                         style={{ width: `${conf * 100}%` }}
                       />
                     </div>
@@ -178,14 +175,12 @@ function App() {
               </div>
             </div>
 
-            {/* Audio Info */}
             <div className="audio-info">
               <h3>Audio file results</h3>
               <p><strong>Duration:</strong> {results.audio_duration.toFixed(2)}s</p>
               <p><strong>Sample frequency:</strong> {results.sample_rate} Hz</p>
             </div>
 
-            {/* Analyze Another Button */}
             <button
               onClick={() => {
                 setUploadedFile(null);
