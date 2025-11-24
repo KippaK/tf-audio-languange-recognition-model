@@ -7,117 +7,56 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from model import build_model
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau, Callback
 import numpy as np
 import shutil
+import time
 
 from config import LANGUAGES, LANGUAGE_WEIGHTS
 
-# Konfiguraatioparametrit
 SAMPLE_RATE = 16000
 DURATION = 2
 FIXED_LENGTH = SAMPLE_RATE * DURATION
-BATCH_SIZE = 32
+BATCH_SIZE = 48
 EPOCHS = 50
 N_MELS = 64
 
-def augment_audio(audio):
+def simple_augment_audio(audio):
     """
-    Tehostettu data-augmentaatio äänelle.
+    Kevyt augmentaatio: gain + satunnainen kohina.
     """
-    original_audio = audio
+    if tf.random.uniform([]) > 0.5:
+        gain = tf.random.uniform([], 0.9, 1.1)
+        audio = audio * gain
 
-    # 1. Kohina
-    if tf.random.uniform([]) > 0.6:
-        noise_std = tf.random.uniform([], 0.001, 0.02)
+    if tf.random.uniform([]) > 0.8:
+        noise_std = tf.random.uniform([], 0.001, 0.005)
         noise = tf.random.normal(tf.shape(audio), stddev=noise_std)
         audio = audio + noise
 
-    # 2. Vahvistuksen muutos
-    if tf.random.uniform([]) > 0.6:
-        gain = tf.random.uniform([], 0.6, 1.4)
-        audio = audio * gain
-
-    # 3. Frekvenssifiltteri simulointi
-    if tf.random.uniform([]) > 0.7:
-        # Yksinkertainen high-pass/low-pass efekti
-        filter_type = tf.random.uniform([], 0, 1)
-        if filter_type > 0.5:
-            # High-pass efekti (vähennetään matalia taajuuksia)
-            audio = audio * tf.random.uniform([], 1.0, 1.3)
-        else:
-            # Low-pass efekti (vähennetään korkeita taajuuksia)
-            audio = audio * tf.random.uniform([], 0.7, 1.0)
-
-    # 4. Aikavenytys/nopeutus käyttäen FFT:ta
-    if tf.random.uniform([]) > 0.8:
-        rate = tf.random.uniform([], 0.8, 1.2)
-        current_length = tf.shape(audio)[0]
-        new_length = tf.cast(tf.cast(current_length, tf.float32) * rate, tf.int32)
-
-        # Resample FFT:llä
-        audio_fft = tf.signal.fft(tf.cast(audio, tf.complex64))
-
-        if rate > 1.0:  # Nopeutus
-            # Leikkaa korkeimmat taajuudet
-            keep_freqs = tf.cast(tf.cast(tf.shape(audio_fft)[0], tf.float32) / rate, tf.int32)
-            audio_fft = audio_fft[:keep_freqs]
-            # Täytä nollilla
-            padding = tf.zeros([new_length - keep_freqs], dtype=tf.complex64)
-            audio_fft = tf.concat([audio_fft, padding], axis=0)
-        else:  # Hidastus
-            # Täytä nollilla keskitaajuuksien väliin
-            orig_freqs = tf.shape(audio_fft)[0]
-            new_freqs = tf.cast(tf.cast(orig_freqs, tf.float32) * rate, tf.int32)
-            keep_freqs = new_freqs // 2
-
-            # Pidä alku- ja lopputaajuudet
-            first_half = audio_fft[:keep_freqs]
-            second_half = audio_fft[orig_freqs - keep_freqs:]
-            zeros = tf.zeros([new_freqs - 2 * keep_freqs], dtype=tf.complex64)
-            audio_fft = tf.concat([first_half, zeros, second_half], axis=0)
-
-        audio = tf.math.real(tf.signal.ifft(audio_fft))
-        audio = tf.reshape(audio, [new_length])
-
-    # 5. Varmista että ääni pysyy vakiopituisena
-    audio_len = tf.shape(audio)[0]
-    audio = tf.cond(
-        audio_len > FIXED_LENGTH,
-        lambda: audio[:FIXED_LENGTH],
-        lambda: tf.pad(audio, [[0, FIXED_LENGTH - audio_len]])
-    )
-
-    # 6. Rajaa äänenvoimakkuus
-    audio = tf.clip_by_value(audio, -1.0, 1.0)
-
     return audio
+
 def create_mel_spectrogram(audio, augment=False):
     """
-    Parannettu mel-spektrogrammin luonti data-augmentaatiolla.
+    Muuntaa 1D-audion mel-spektrogrammiksi, palauttaa shape (time, mel, 1).
     """
-    # Muunna float32:ksi ja normalisoi amplitudi
     audio = tf.cast(audio, tf.float32)
     max_val = tf.reduce_max(tf.abs(audio)) + 1e-9
     audio = audio / max_val
 
-    # Täytä tai leikkaa ääni vakiopituiseksi
     audio_len = tf.shape(audio)[0]
     audio = tf.cond(
         audio_len > FIXED_LENGTH,
         lambda: audio[:FIXED_LENGTH],
-        lambda: tf.pad(audio, [[0, FIXED_LENGTH - audio_len]])
+        lambda: tf.pad(audio, [[0, tf.maximum(FIXED_LENGTH - audio_len, 0)]])
     )
 
-    # Data-augmentaatio vain koulutusdatalle
     if augment:
-        audio = augment_audio(audio)
+        audio = simple_augment_audio(audio)
 
-    # Laske lyhytaikainen Fourier-muunnos
-    stft = tf.signal.stft(audio, frame_length=512, frame_step=256, fft_length=512)
+    stft = tf.signal.stft(audio, frame_length=400, frame_step=160, fft_length=512)
     spectrogram = tf.abs(stft)
 
-    # Luo mel-suodatinmatriisi
     mel_matrix = tf.signal.linear_to_mel_weight_matrix(
         num_mel_bins=N_MELS,
         num_spectrogram_bins=257,
@@ -126,24 +65,22 @@ def create_mel_spectrogram(audio, augment=False):
         upper_edge_hertz=7600.0
     )
 
-    # Muunna mel-asteikolle
     mel_spec = tf.tensordot(spectrogram, mel_matrix, 1)
     mel_spec = tf.math.log(mel_spec + 1e-6)
 
-    # Normalisoi spektrogrammi
     mean = tf.reduce_mean(mel_spec)
     std = tf.math.reduce_std(mel_spec)
     mel_spec = (mel_spec - mean) / (std + 1e-6)
 
-    # Lisää kanavaulottuvuus
     mel_spec = tf.expand_dims(mel_spec, -1)
 
     return mel_spec
 
 def load_data():
     """
-    Lataa kaikki kielet config.py-tiedostosta.
-    Luo tasapainoisen treeni- ja validointidatan.
+    Lataa datan konfiguraation LANGUAGES-listasta.
+    Varmistaa, ettei pyydetä suurempaa slicea kuin datasetissä on.
+    Palauttaa train_ds ja val_ds (tf.data.Dataset).
     """
     print("Loading data...")
 
@@ -152,127 +89,188 @@ def load_data():
 
     try:
         for label_index, lang in enumerate(LANGUAGES):
-            name        = lang["name"]
-            dataset     = lang["dataset"]
-            train_split = f"train[:{lang["train_split"]}]"
-            val_split   = f"validation[:{lang["val_split"]}]"
+            name = lang["name"]
+            dataset = lang["dataset"]
 
-            print(f"Ladataan {name} dataa... ({dataset})")
+            builder = tfds.builder(dataset)
+            builder.download_and_prepare()  # varmistaa että info on saatavilla
+            info = builder.info
 
-            # Lataa treeni- ja validointidata
-            train_ds = tfds.load(dataset, split=train_split, as_supervised=True)
-            val_ds   = tfds.load(dataset, split=val_split,   as_supervised=True)
+            train_available = info.splits['train'].num_examples
+            val_available = info.splits['validation'].num_examples
 
-            # Tulosta kokoja
-            train_count = len(list(train_ds))
-            val_count   = len(list(val_ds))
-            print(f"  Train: {train_count}, Val: {val_count}")
+            train_take = min(train_available, lang.get('train_split', train_available))
+            val_take = min(val_available, lang.get('val_split', val_available))
 
-            # Mapataan spectrogram + label jokaiselle kielelle
+            train_ds = tfds.load(dataset, split=f"train[:{train_take}]", as_supervised=True)
+            val_ds = tfds.load(dataset, split=f"validation[:{val_take}]", as_supervised=True)
+
+            print(f"Loaded {name}: {train_take} train, {val_take} val (available train {train_available}, val {val_available})")
+
             train_ds = train_ds.map(
-                lambda audio, text, li=label_index:
-                    (create_mel_spectrogram(audio, augment=True), li)
+                lambda audio, text, li=label_index: (create_mel_spectrogram(audio, augment=True), li),
+                num_parallel_calls=tf.data.AUTOTUNE
             )
             val_ds = val_ds.map(
-                lambda audio, text, li=label_index:
-                    (create_mel_spectrogram(audio, augment=False), li)
+                lambda audio, text, li=label_index: (create_mel_spectrogram(audio, augment=False), li),
+                num_parallel_calls=tf.data.AUTOTUNE
             )
 
             train_datasets.append(train_ds)
             val_datasets.append(val_ds)
 
-        print("Kaikkien kielten data ladattu onnistuneesti.")
-
     except Exception as e:
-        print(f"Virhe datan latauksessa: {e}")
+        print(f"Error loading data: {e}")
         return None, None
 
-    # --- Luo tasapainoinen treenidatasetti ---
-    # Joka kieli saa saman painon
+    if len(train_datasets) == 0:
+        print("No training datasets loaded.")
+        return None, None
+
     num_langs = len(train_datasets)
     weights = [1.0 / num_langs] * num_langs
 
     train_ds = tf.data.Dataset.sample_from_datasets(train_datasets, weights=weights)
-    val_ds   = tf.data.Dataset.sample_from_datasets(val_datasets,   weights=weights)
+    val_ds = tf.data.Dataset.sample_from_datasets(val_datasets, weights=weights)
 
-    # Optimoi dataputki
-    train_ds = train_ds.shuffle(3000).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-    val_ds   = val_ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+    train_ds = (train_ds
+                .cache()
+                .shuffle(1500, reshuffle_each_iteration=True)
+                .batch(BATCH_SIZE)
+                .prefetch(tf.data.AUTOTUNE))
+
+    val_ds = (val_ds
+              .cache()
+              .batch(BATCH_SIZE)
+              .prefetch(tf.data.AUTOTUNE))
 
     return train_ds, val_ds
 
+class SmartTrainingCallback(Callback):
+    """
+    Callback joka kerää epoch-aikoja ja näyttää arvioidun jäljellä olevan ajan.
+    """
+    def on_train_begin(self, logs=None):
+        self.start_time = time.time()
+        self.epoch_times = []
+        self.total_epochs = self.params.get('epochs', EPOCHS)
+
+    def on_epoch_begin(self, epoch, logs=None):
+        self.epoch_start = time.time()
+
+    def on_epoch_end(self, epoch, logs=None):
+        epoch_time = time.time() - self.epoch_start
+        self.epoch_times.append(epoch_time)
+
+        avg_epoch_time = float(np.mean(self.epoch_times))
+        remaining = avg_epoch_time * (self.total_epochs - (epoch + 1))
+
+        rem_h = int(remaining // 3600)
+        rem_m = int((remaining % 3600) // 60)
+
+        print(f"\nEpoch {epoch+1}/{self.total_epochs}")
+        print(f"   Time this epoch: {epoch_time:.1f}s")
+        print(f"   Avg epoch time: {avg_epoch_time:.1f}s")
+        print(f"   Estimated remaining: {rem_h}h {rem_m}min")
 
 def main():
-    """Päivitetty pääfunktio class weighteilla."""
-
-    # Poistaa edelliset mallit
-    for model_file in ['best_model.keras', 'trained_model.keras']:
+    for model_file in ['best_model_tf', 'trained_tf', 'best_model.keras', 'trained_model.keras']:
         if os.path.exists(model_file):
-            os.remove(model_file)
-            print(f"Removed previous {model_file}")
+            try:
+                if os.path.isdir(model_file):
+                    shutil.rmtree(model_file)
+                else:
+                    os.remove(model_file)
+                print(f"Removed previous {model_file}")
+            except Exception:
+                pass
 
     print("AUDIO LANGUAGE DETECTION")
-    print("=" * 50)
+    print("=" * 60)
+    print(f"Training {len(LANGUAGES)} languages: {[lang['name'] for lang in LANGUAGES]}")
+    print(f"Batch size: {BATCH_SIZE}, Epochs: {EPOCHS}")
+    print(f"Class weights: {LANGUAGE_WEIGHTS}")
 
-    # Lataa ja valmistele data
     train_ds, val_ds = load_data()
-
     if train_ds is None:
         print("Data loading failed")
         return
 
-    # Hae mallin syöteformaatti
     for x, y in train_ds.take(1):
         input_shape = x.shape[1:]
         print(f"Input shape: {input_shape}")
         break
 
-    # Rakenna parannettu malli
     print("Building model...")
     model = build_model(input_shape=input_shape, num_classes=len(LANGUAGES))
 
+    smart_cb = SmartTrainingCallback()
 
-    # Parannetut callbackit
     callbacks = [
-        EarlyStopping(monitor='val_accuracy', patience=12, restore_best_weights=True, verbose=1),
-        ModelCheckpoint('best_model_tf', monitor='val_accuracy', save_best_only=True, verbose=1, save_format='tf'),
-        ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=6, min_lr=1e-7, verbose=1)
+        EarlyStopping(
+            monitor='val_accuracy',
+            patience=5, 
+            restore_best_weights=True,
+            verbose=1,
+            min_delta=0.002
+        ),
+        ModelCheckpoint(
+            'best_model_tf',
+            monitor='val_accuracy',
+            save_best_only=True,
+            verbose=1,
+            save_format='tf'
+        ),
+        ReduceLROnPlateau(
+            monitor='val_loss',
+            factor=0.6,
+            patience=6,
+            min_lr=1e-5,
+            verbose=1,
+            cooldown=2
+        ),
+        smart_cb
     ]
 
-    # Kouluta malli class weighteilla
-    print("Starting training with class weights...")
+    print("Starting training...")
+
+    if tf.config.list_physical_devices('GPU'):
+        print("GPU detected - using hardware acceleration")
+
     history = model.fit(
         train_ds,
         epochs=EPOCHS,
         validation_data=val_ds,
         callbacks=callbacks,
-        class_weight=LANGUAGE_WEIGHTS,  # Lisätty class weight
+        class_weight=LANGUAGE_WEIGHTS,
         verbose=1
     )
 
-    # Tallenna lopullinen malli
     model.save("trained_tf", save_format='tf')
-    print("Model saved: trained_model_tf (TensorFlow SavedModel format)")
+    print("Model saved: trained_tf")
 
-    # Analysoi tulokset
-    best_val_acc = max(history.history['val_accuracy'])
-    train_acc = history.history['accuracy'][-1]
+    total_time = time.time() - getattr(smart_cb, 'start_time', time.time())
 
-    print("\nTRAINING RESULTS:")
-    print(f"Training accuracy: {train_acc:.4f}")
+    best_val_acc = max(history.history.get('val_accuracy', [0]))
+    train_acc = history.history.get('accuracy', [0])[-1] if 'accuracy' in history.history else 0.0
+
+    print("\n" + "=" * 60)
+    print("TRAINING RESULTS:")
+    print("=" * 60)
+    print(f"Final training accuracy: {train_acc:.4f}")
     print(f"Best validation accuracy: {best_val_acc:.4f}")
+    print(f"Total training time: {total_time/60:.1f}min")
 
-    # Suorituskyvyn arviointi
-    if best_val_acc > 0.80:
-        print("EXCELLENT performance!")
-    elif best_val_acc > 0.75:
-        print("VERY GOOD performance")
-    elif best_val_acc > 0.70:
-        print("GOOD performance")
+    if best_val_acc > 0.75:
+        print("EXCELLENT performance! (>75%)")
     elif best_val_acc > 0.65:
-        print("ACCEPTABLE performance")
+        print("VERY GOOD performance (65-75%)")
+    elif best_val_acc > 0.55:
+        print("GOOD performance (55-65%)")
+    elif best_val_acc > 0.45:
+        print("ACCEPTABLE performance (45-55%)")
     else:
-        print("Model needs improvement")
+        print("Needs improvement (<45%)")
 
 if __name__ == "__main__":
     main()
