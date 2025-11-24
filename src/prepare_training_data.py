@@ -1,6 +1,6 @@
 import os
 
-# Estetään TensorFlowin turhat varoitukset
+# Suppress TensorFlow unnecessary warnings
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -23,7 +23,7 @@ N_MELS = 64
 
 def simple_augment_audio(audio):
     """
-    Kevyt augmentaatio: gain + satunnainen kohina.
+    Simple augmentation: gain + random noise.
     """
     if tf.random.uniform([]) > 0.5:
         gain = tf.random.uniform([], 0.9, 1.1)
@@ -38,7 +38,7 @@ def simple_augment_audio(audio):
 
 def create_mel_spectrogram(audio, augment=False):
     """
-    Muuntaa 1D-audion mel-spektrogrammiksi, palauttaa shape (time, mel, 1).
+    Converts 1D audio to mel-spectrogram, returns shape (time, mel, 1).
     """
     audio = tf.cast(audio, tf.float32)
     max_val = tf.reduce_max(tf.abs(audio)) + 1e-9
@@ -78,9 +78,9 @@ def create_mel_spectrogram(audio, augment=False):
 
 def load_data():
     """
-    Lataa datan konfiguraation LANGUAGES-listasta.
-    Varmistaa, ettei pyydetä suurempaa slicea kuin datasetissä on.
-    Palauttaa train_ds ja val_ds (tf.data.Dataset).
+    Loads data from the LANGUAGES list in configuration.
+    Ensures we don't request a larger slice than exists in the dataset.
+    Returns train_ds and val_ds (tf.data.Dataset).
     """
     print("Loading data...")
 
@@ -93,7 +93,7 @@ def load_data():
             dataset = lang["dataset"]
 
             builder = tfds.builder(dataset)
-            builder.download_and_prepare()  # varmistaa että info on saatavilla
+            builder.download_and_prepare()  # ensures that info is available
             info = builder.info
 
             train_available = info.splits['train'].num_examples
@@ -148,7 +148,7 @@ def load_data():
 
 class SmartTrainingCallback(Callback):
     """
-    Callback joka kerää epoch-aikoja ja näyttää arvioidun jäljellä olevan ajan.
+    Callback that collects epoch times and displays estimated remaining time.
     """
     def on_train_begin(self, logs=None):
         self.start_time = time.time()
@@ -209,7 +209,7 @@ def main():
     callbacks = [
         EarlyStopping(
             monitor='val_accuracy',
-            patience=5, 
+            patience=5,
             restore_best_weights=True,
             verbose=1,
             min_delta=0.002

@@ -1,6 +1,6 @@
 import os
 
-# Estetään TensorFlowin turhat varoitukset
+# Suppress TensorFlow unnecessary warnings
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -12,38 +12,38 @@ from config import LANGUAGES
 
 def save_test_samples(num_samples=10, output_dir="data/test"):
     """
-    Tallentaa testinäytteitä tiedostoihin mallin testaamista varten.
+    Saves test samples to files for model testing.
 
-    Tämä käyttää config.py-tiedoston LANGUAGES-taulukkoa, joten uusia kieliä
-    voidaan lisätä muokkaamatta tätä skriptiä. Jokaisessa kielen 
-    määrittelyssä tulee olla:
-        - prefix: esim. \"su_\", \"en_\"
-        - name: kielen nimi
-        - dataset: TFDS-datasetin nimi
-        - split: käytettävä split (esim. \"test\")
+    This uses the LANGUAGES array from config.py, so new languages
+    can be added without modifying this script. Each language
+    definition should have:
+        - prefix: e.g. \"su_\", \"en_\"
+        - name: language name
+        - dataset: TFDS dataset name
+        - split: split to use (e.g. \"test\")
     """
 
-    # Luodaan kohdehakemisto jos sitä ei ole
+    # Create target directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
-    # Luodaan tekstitystiedosto
+    # Create transcript file
     transcript_file = os.path.join(output_dir, "transcripts.txt")
 
-    print(f"Tallennetaan {num_samples} testiääntä per kieli...")
+    print(f"Saving {num_samples} test audio files per language...")
 
     with open(transcript_file, "w", encoding="utf-8") as f:
 
-        # Käydään configin kielet läpi
+        # Process languages from config
         for lang in LANGUAGES:
             name = lang["name"]
             prefix = lang["prefix"]
             dataset_name = lang["dataset"]
             split = "test"
 
-            print(f"Ladataan {name} testidataa ({dataset_name})...")
+            print(f"Loading {name} test data ({dataset_name})...")
 
             try:
-                # Ladataan pieni osa testidatasta
+                # Load a small portion of test data
                 ds = tfds.load(dataset_name, split=f"{split}[:{num_samples}]", as_supervised=True)
 
                 for i, (audio, text) in enumerate(ds):
@@ -53,32 +53,31 @@ def save_test_samples(num_samples=10, output_dir="data/test"):
                     if len(audio_array.shape) > 1:
                         audio_array = np.mean(audio_array, axis=1)
 
-                    # Normalisoidaan
+                    # Normalize
                     audio_array = audio_array.astype(np.float32)
                     max_val = np.max(np.abs(audio_array)) + 1e-9
                     audio_array = audio_array / max_val
 
-                    # Luodaan tiedostonimi esim. su_001.wav
+                    # Create filename e.g. su_001.wav
                     filename = f"{prefix}{i+1:03d}.wav"
                     filepath = os.path.join(output_dir, filename)
 
-                    # Tallennetaan wav
+                    # Save wav
                     sf.write(filepath, audio_array, 16000, subtype="FLOAT")
 
-                    # Tekstitys
+                    # Transcript
                     transcript = text.numpy().decode("utf-8")
                     f.write(f"{filename}\t{transcript}\n")
 
                     print(f"Saved: {filename}")
 
             except Exception as e:
-                print(f"Virhe ladattaessa {name} testidataa: {e}")
+                print(f"Error loading {name} test data: {e}")
 
-    print(f"\nTallennus valmis: {num_samples * len(LANGUAGES)} tiedostoa tallennettu hakemistoon: {output_dir}")
-    print(f"Tekstitykset tallennettu: {transcript_file}")
+    print(f"\nSave complete: {num_samples * len(LANGUAGES)} files saved to directory: {output_dir}")
+    print(f"Transcripts saved: {transcript_file}")
 
 if __name__ == "__main__":
-    # Suoritetaan testinäytteiden tallennus oletusarvoilla
-    # 10 näytettä per kieli, tallennushakemistona "data/test"
+    # Execute test sample saving with default values
+    # 10 samples per language, save directory "data/test"
     save_test_samples(num_samples=10, output_dir="data/test")
-    

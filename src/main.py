@@ -1,6 +1,6 @@
 import os
 
-# Estetään TensorFlowin turhat varoitukset
+# Suppress TensorFlow unnecessary warnings
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -12,23 +12,23 @@ from colorama import init, Fore, Style
 
 from config import LABELS, PREFIX_MAP
 
-# Alustetaan colorama Windows-konsolin väritystä varten
+# Initialize colorama for Windows console coloring
 init()
 
 class LanguageDetector:
     """
-    Äänitiedostojen kielentunnistus esikoulutetulla neuroverkkomallilla.
-    Hoitaa äänen esikäsittelyn, mel-spektrogrammin muunnoksen ja ennusteen.
+    Audio file language detection using a pretrained neural network model.
+    Handles audio preprocessing, mel-spectrogram conversion, and prediction.
     """
 
     def __init__(self, model_path="trained_tf"):
-        """Alustaa tunnistimen lataamalla koulutetun mallin."""
+        """Initializes the detector by loading the trained model."""
         try:
             self.model = load_model(model_path)
-            # Äänenkäsittelyparametrit (samat kuin koulutuksessa)
+            # Audio processing parameters (same as in training)
             self.sample_rate = 16000
-            self.fixed_length = self.sample_rate * 2  # 2 sekuntia
-            self.n_mels = 64  # Mel-taajuuksien määrä
+            self.fixed_length = self.sample_rate * 2  # 2 seconds
+            self.n_mels = 64  # Number of mel frequencies
             self.labels = LABELS
         except Exception as e:
             print(f"Error loading model: {e}")
@@ -36,21 +36,21 @@ class LanguageDetector:
 
     def preprocess_audio(self, audio):
         """
-        Esikäsittelee äänen mallin syötteeksi.
-        - Muuntaa stereon monoksi
-        - Normalisoi amplitudin
-        - Tasaa pituuden täyttämällä/leikkaamalla
+        Preprocesses audio for model input.
+        - Converts stereo to mono
+        - Normalizes amplitude
+        - Standardizes length by padding/truncating
         """
         # Stereo -> mono
         if len(audio.shape) > 1:
             audio = np.mean(audio, axis=1)
 
-        # Normalisoi äänenvoimakkuus
+        # Normalize volume
         audio = audio.astype(np.float32)
         max_val = np.max(np.abs(audio)) + 1e-9
         audio = audio / max_val
 
-        # Täytä tai leikkaa vakiopituiseksi
+        # Pad or truncate to fixed length
         audio_len = len(audio)
         if audio_len > self.fixed_length:
             audio = audio[:self.fixed_length]
@@ -62,17 +62,17 @@ class LanguageDetector:
 
     def audio_to_mel(self, audio):
         """
-        Muuntaa äänen mel-spektrogrammiksi.
-        Käyttää samaa prosessia kuin mallin koulutus.
+        Converts audio to mel-spectrogram.
+        Uses the same process as model training.
         """
-        # Muunna TensorFlow-tensoriksi
+        # Convert to TensorFlow tensor
         audio_tensor = tf.convert_to_tensor(audio, dtype=tf.float32)
 
-        # Laske spektrogrammi (STFT)
-        stft = tf.signal.stft(audio_tensor, frame_length=512, frame_step=256, fft_length=512)
+        # Calculate spectrogram (STFT)
+        stft = tf.signal.stft(audio_tensor, frame_length=400, frame_step=160, fft_length=512)
         spectrogram = tf.abs(stft)
 
-        # Luo mel-suodatin
+        # Create mel filter
         mel_matrix = tf.signal.linear_to_mel_weight_matrix(
             num_mel_bins=self.n_mels,
             num_spectrogram_bins=257,
@@ -81,47 +81,47 @@ class LanguageDetector:
             upper_edge_hertz=7600.0
         )
 
-        # Muunna mel-asteikolle
+        # Convert to mel scale
         mel_spec = tf.tensordot(spectrogram, mel_matrix, 1)
-        mel_spec = tf.math.log(mel_spec + 1e-6)  # Logaritminen kompressio
+        mel_spec = tf.math.log(mel_spec + 1e-6)  # Logarithmic compression
 
-        # Normalisoi
+        # Normalize
         mean = tf.reduce_mean(mel_spec)
         std = tf.math.reduce_std(mel_spec)
         mel_spec = (mel_spec - mean) / (std + 1e-6)
 
-        # Lisää ulottuvuudet mallin syötteelle: (batch, aika, taajuus, kanava)
-        mel_spec = tf.expand_dims(mel_spec, axis=0)   # Batch-ulottuvuus
-        mel_spec = tf.expand_dims(mel_spec, axis=-1)  # Kanava-ulottuvuus
+        # Add dimensions for model input: (batch, time, frequency, channel)
+        mel_spec = tf.expand_dims(mel_spec, axis=0)   # Batch dimension
+        mel_spec = tf.expand_dims(mel_spec, axis=-1)  # Channel dimension
 
         return mel_spec.numpy()
 
     def predict(self, audio_path):
         """
-        Ennustaa äänitiedoston kielen.
+        Predicts the language of an audio file.
 
-        Palauttaa:
-            tuple: (kieli, luottamus) tai (None, 0.0) virhetilanteessa
+        Returns:
+            tuple: (language, confidence) or (None, 0.0) on error
         """
         if self.model is None:
             return None, 0.0
 
         try:
-            # Lataa äänitiedosto
+            # Load audio file
             audio, sr = sf.read(audio_path)
 
-            # Yksinkertainen näytteenottotaajuuden muutos
+            # Simple sample rate conversion
             if sr != self.sample_rate and sr > self.sample_rate:
                 step = sr // self.sample_rate
                 audio = audio[::step]
 
-            # Esikäsittele ääni
+            # Preprocess audio
             audio = self.preprocess_audio(audio)
 
-            # Muunna mel-spektrogrammiksi
+            # Convert to mel-spectrogram
             mel_spec = self.audio_to_mel(audio)
 
-            # Tee ennuste
+            # Make prediction
             predictions = self.model.predict(mel_spec, verbose=0)
             pred_idx = np.argmax(predictions[0])
             confidence = float(predictions[0][pred_idx])
@@ -134,10 +134,10 @@ class LanguageDetector:
 
 def load_transcripts(transcript_file):
     """
-    Lataa tekstitykset tiedostosta.
+    Loads transcripts from file.
 
-    Palauttaa:
-        dict: Sanakirja, jossa tiedostonimet avaimina ja tekstitykset arvoina
+    Returns:
+        dict: Dictionary with filenames as keys and transcripts as values
     """
     transcripts = {}
     try:
@@ -152,7 +152,7 @@ def load_transcripts(transcript_file):
     return transcripts
 
 def main():
-    """Testaa koulutettua mallia testitiedostoilla ja näyttää tulokset."""
+    """Tests the trained model with test files and displays results."""
     detector = LanguageDetector()
     if detector.model is None:
         return
@@ -160,15 +160,15 @@ def main():
     data_dir = "data/test"
     transcript_file = os.path.join(data_dir, "transcripts.txt")
 
-    # Tarkista että testihakemisto on olemassa
+    # Check that test directory exists
     if not os.path.exists(data_dir):
         print(f"Test directory not found: {data_dir}")
         return
 
-    # Lataa tekstitykset
+    # Load transcripts
     transcripts = load_transcripts(transcript_file)
 
-    # Etsi WAV-tiedostot
+    # Find WAV files
     wav_files = [f for f in os.listdir(data_dir) if f.lower().endswith('.wav')]
 
     if not wav_files:
@@ -179,30 +179,30 @@ def main():
 
     correct_predictions = 0
 
-    # Käy läpi kaikki testitiedostot
+    # Process all test files
     for filename in sorted(wav_files):
         filepath = os.path.join(data_dir, filename)
         language, confidence = detector.predict(filepath)
 
         if language:
-            # Määritä todellinen kieli tiedostonimen perusteella
+            # Determine true language based on filename
             true_language = None
             for prefix, lang in PREFIX_MAP.items():
                 if filename.startswith(prefix):
                     true_language = lang
                     break
 
-            # Hae tekstitys tiedostolle
+            # Get transcript for file
             transcript = transcripts.get(filename, "No transcript available")
 
-            # Tarkista onko ennuste oikein
+            # Check if prediction is correct
             is_correct = (language == true_language) if true_language else None
 
-            # Luo tulosrivi perustiedoilla
+            # Create result line with basic info
             result_line = f"{filename} | Prediction: {language} ({confidence*100:.1f}%)"
 
             if true_language:
-                # Lisää värikoodattu tulos (vihreä oikein, punainen väärin)
+                # Add color-coded result (green correct, red wrong)
                 if is_correct:
                     status = f"{Fore.GREEN}CORRECT{Style.RESET_ALL}"
                     correct_predictions += 1
@@ -211,11 +211,11 @@ def main():
 
                 result_line += f" | {status} (True: {true_language})"
 
-            # Lisää tekstitys tulokseen
+            # Add transcript to result
             result_line += f" | Transcript: {transcript[:50]}{'...' if len(transcript) > 50 else ''}"
             print(result_line)
 
-    # Näytä yhteenveto väreillä
+    # Display summary with colors
     print("\n" + "="*50)
     print("SUMMARY:")
     print("="*50)
@@ -223,7 +223,7 @@ def main():
     if wav_files:
         accuracy = (correct_predictions / len(wav_files)) * 100
 
-        # Värikoodaa kokonaistarkkuus
+        # Color-code overall accuracy
         if accuracy >= 80:
             accuracy_color = Fore.GREEN
         elif accuracy >= 60:
