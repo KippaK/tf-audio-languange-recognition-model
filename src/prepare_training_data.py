@@ -17,22 +17,52 @@ from config import LANGUAGES, LANGUAGE_WEIGHTS
 SAMPLE_RATE = 16000
 DURATION = 2
 FIXED_LENGTH = SAMPLE_RATE * DURATION
-BATCH_SIZE = 48
+BATCH_SIZE = 32
 EPOCHS = 50
 N_MELS = 64
 
 def simple_augment_audio(audio):
     """
-    Simple augmentation: gain + random noise.
+    Moderate augmentation - reverted to settings that achieved 59.5% validation.
+    Less aggressive than recent attempts to preserve language features.
     """
-    if tf.random.uniform([]) > 0.5:
-        gain = tf.random.uniform([], 0.9, 1.1)
+    # 1. TIME SHIFTING (75% chance)
+    # Randomly shifts audio left/right by up to ±0.2 seconds
+    if tf.random.uniform([]) > 0.25:
+        max_shift = 3200  # ±0.2 seconds at 16kHz
+        shift = tf.random.uniform([], -max_shift, max_shift, dtype=tf.int32)
+        audio = tf.roll(audio, shift, axis=0)
+
+    # 2. VOLUME/GAIN ADJUSTMENT (85% chance)
+    # Multiplies audio by 0.8-1.2 (±20%)
+    if tf.random.uniform([]) > 0.15:
+        gain = tf.random.uniform([], 0.8, 1.2)
         audio = audio * gain
 
-    if tf.random.uniform([]) > 0.8:
-        noise_std = tf.random.uniform([], 0.001, 0.005)
+    # 3. BACKGROUND NOISE (65% chance)
+    # Adds light realistic noise
+    if tf.random.uniform([]) > 0.35:
+        noise_std = tf.random.uniform([], 0.005, 0.012)
         noise = tf.random.normal(tf.shape(audio), stddev=noise_std)
         audio = audio + noise
+
+    # 4. TIME MASKING (35% chance) - Reduced from 40%
+    # Randomly zeros out brief segment
+    if tf.random.uniform([]) > 0.65:
+        audio_len = tf.shape(audio)[0]
+        mask_length = tf.random.uniform([], 800, 1600, dtype=tf.int32)
+        mask_start = tf.random.uniform([], 0, audio_len - mask_length, dtype=tf.int32)
+
+        indices = tf.range(mask_start, mask_start + mask_length)
+        indices = tf.reshape(indices, [-1, 1])
+        mask = tf.ones(audio_len, dtype=tf.float32)
+        updates = tf.zeros(mask_length, dtype=tf.float32)
+        mask = tf.tensor_scatter_nd_update(mask, indices, updates)
+        audio = audio * mask
+
+    # 5. POLARITY INVERSION (12% chance)
+    if tf.random.uniform([]) > 0.88:
+        audio = -audio
 
     return audio
 
@@ -209,7 +239,7 @@ def main():
     callbacks = [
         EarlyStopping(
             monitor='val_accuracy',
-            patience=5,
+            patience=25,
             restore_best_weights=True,
             verbose=1,
             min_delta=0.002
@@ -221,14 +251,13 @@ def main():
             verbose=1,
             save_format='tf'
         ),
-        ReduceLROnPlateau(
-            monitor='val_loss',
-            factor=0.6,
-            patience=6,
-            min_lr=1e-5,
-            verbose=1,
-            cooldown=2
-        ),
+       ReduceLROnPlateau(
+    monitor='val_accuracy',  # Changed from val_loss
+    factor=0.8,              # Changed from 0.6 (less aggressive)
+    patience=12,             # Changed from 6 (wait longer)
+    min_lr=5e-5,            # Changed from 1e-5 (higher minimum)
+    verbose=1
+),
         smart_cb
     ]
 

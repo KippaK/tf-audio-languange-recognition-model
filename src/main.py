@@ -21,8 +21,8 @@ class LanguageDetector:
     Handles audio preprocessing, mel-spectrogram conversion, and prediction.
     """
 
-    def __init__(self, model_path="trained_tf"):
-        """Initializes the detector by loading the trained model."""
+    def __init__(self, model_path="best_model_tf"):
+        """Initializes the detector by loading the best model."""
         try:
             self.model = load_model(model_path)
             # Audio processing parameters (same as in training)
