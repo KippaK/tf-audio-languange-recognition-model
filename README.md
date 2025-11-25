@@ -20,11 +20,11 @@ Spoken Language Identification (LID) is defined as detecting language from an au
 ## Environment Setup
 The models are implemented in TensorFlow/Keras.
 To use all of the functionality of the library, you should have:</br>
-tensorflow==2.13.0</br>
-numpy==1.24.3</br>
-tensorflow-datasets==4.9.4</br>
-soundfile==0.12.1</br>
-colorama==0.4.6</br>
+tensorflow</br>
+numpy</br>
+tensorflow-datasets</br>
+soundfile</br>
+colorama</br>
 
 ## Gantt chart for project planning
 The project schedule and milestones are documented in an Excel Gantt chart.
