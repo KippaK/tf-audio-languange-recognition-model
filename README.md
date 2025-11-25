@@ -34,18 +34,35 @@ You can open it directly from OneDrive:
 ## File Structure
 
 ```
-src/
-├── model.py                 # Advanced CNN architecture with attention mechanism
-├── prepare_training_data.py # Complete training pipeline with data augmentation
-├── main.py                  # Model testing and predictions with confidence scores
-├── test_model.py            # Comprehensive performance evaluation
-└── save_test_samples.py     # Test data generation from FLEURS dataset
+tf-audio-languange-recognition-model/
+├── src/
+│   ├── __pycache__/              # Python-generated cache for compiled .pyc files
+│   ├── api_server.py             # (Optional) API server to serve model predictions via REST
+│   ├── config.py                 # Model configuration parameters, hyperparameters, and paths
+│   ├── main.py                   # Script to run predictions on audio files
+│   ├── model.py                  # CNN + Attention model architecture
+│   ├── prepare_training_data.py  # Complete training pipeline with data preprocessing and augmentation
+│   ├── save_test_samples.py      # Generates test audio files in data/test/ from FLEURS dataset
+│   ├── test_model.py             # Evaluate model performance and calculate metrics
+│   ├── best_model_tf/            # Directory containing the best trained model checkpoint
+│   ├── last_model_tf/            # Directory containing the most recent trained model checkpoint
+│   └── trained_tf/               # Saved trained models (multiple versions possible)
+│
+├── data/
+│   └── test/                     # Test audio files for model evaluation
+│       ├── su_*.wav              # Test samples in Finnish
+│       ├── en_*.wav              # Test samples in English
+│       └── transcripts.txt       # Transcripts of all test audio files
+│
+├── frontend/
+│   ├── node_modules/             # Node.js packages and dependencies (installed via npm)
+│   ├── package.json              # npm configuration, scripts, and dependencies
+│   ├── package-lock.json         # Locks exact dependency versions
+│   ├── public/                   # Public static files (HTML, favicon, etc.)
+│   └── src/                      # React + TypeScript frontend code (components, services, CSS)
+│
+└── README.md                      # Project README: description, setup, usage, results, and file structure
 
-data/
-└── test/                    # Sample audio files for testing
-    ├── su_*.wav            # Finnish test samples
-    ├── en_*.wav            # English test samples
-    └── transcripts.txt     # Transcripts for all test files
 ```
 
 ## How It Works
@@ -145,6 +162,18 @@ data/
 - Run comprehensive evaluation on large test set</br>
 `python src/test_model.py`
 
+##Backend
+
+`python api_server.py`
+
+##Frontend
+
+- Install frontend dependencies</br>
+`cd frontend`
+`cd src`
+`npm install`
+`npm start`
+
 # Expected Results
 
 ## Training Output Example
@@ -169,18 +198,38 @@ EXCELLENT performance!
 ## Sample Predictions
 
 ```
-en_001.wav | Prediction: English (95.3%) | CORRECT (True: English)
-en_002.wav | Prediction: English (100.0%) | CORRECT (True: English) 
-en_003.wav | Prediction: English (67.8%) | CORRECT (True: English)
 su_001.wav | Prediction: Finnish (100.0%) | CORRECT (True: Finnish)
-su_002.wav | Prediction: Finnish (100.0%) | CORRECT (True: Finnish)
-su_003.wav | Prediction: English (63.7%) | WRONG (True: Finnish)
+su_002.wav | Prediction: Finnish (95.2%)  | CORRECT (True: Finnish)
+su_003.wav | Prediction: English (62.5%)  | WRONG   (True: Finnish)
+su_004.wav | Prediction: Finnish (100.0%) | CORRECT (True: Finnish)
+su_005.wav | Prediction: Finnish (97.0%)  | CORRECT (True: Finnish)
+
+en_001.wav | Prediction: English (98.1%)  | CORRECT (True: English)
+en_002.wav | Prediction: English (100.0%) | CORRECT (True: English)
+en_003.wav | Prediction: English (85.7%)  | CORRECT (True: English)
+en_004.wav | Prediction: Finnish (59.3%)  | WRONG   (True: English)
+en_005.wav | Prediction: English (92.4%)  | CORRECT (True: English)
+
+ru_001.wav | Prediction: Russian (91.2%)  | CORRECT (True: Russian)
+ru_002.wav | Prediction: Russian (100.0%) | CORRECT (True: Russian)
+ru_003.wav | Prediction: Spanish (60.3%)  | WRONG   (True: Russian)
+ru_004.wav | Prediction: Russian (95.6%)  | CORRECT (True: Russian)
+ru_005.wav | Prediction: Russian (89.0%)  | CORRECT (True: Russian)
+
+es_001.wav | Prediction: Spanish (100.0%) | CORRECT (True: Spanish)
+es_002.wav | Prediction: Spanish (97.5%)  | CORRECT (True: Spanish)
+es_003.wav | Prediction: Spanish (88.1%)  | CORRECT (True: Spanish)
+es_004.wav | Prediction: Russian (64.2%)  | WRONG   (True: Spanish)
+es_005.wav | Prediction: Spanish (92.0%)  | CORRECT (True: Spanish)
 
 SUMMARY:
-Accuracy: 16/20 (80.0%)
+Accuracy: 17/20 (85.0%)
 
-Finnish accuracy: 9/10 (90.0%)
-English accuracy: 7/10 (70.0%)
+Finnish accuracy: 4/5 (80.0%)
+English accuracy: 4/5 (80.0%)
+Russian accuracy: 4/5 (80.0%)
+Spanish accuracy: 5/5 (100.0%)
+
 ```
 
 ## Test Evaluation
@@ -196,9 +245,9 @@ GENERALIZATION ASSESSMENT:
 EXCELLENT generalization
 ```
 
-## Performance Analysis
+## Performance Analysis (with 2 languages)
 
-### Current Performance Levels
+### Current Performance Levels 
 * **EXCELLENT**: >80% test accuracy  **ACHIEVED: 83%**
 * **VERY GOOD**: 75-80% test accuracy
 * **GOOD**: 70-75% test accuracy  
