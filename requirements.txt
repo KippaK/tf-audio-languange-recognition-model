@@ -1,7 +1,0 @@
-numpy==2.4.0
-pytorch==2.8.0
-tensorflow-datasets==4.9.9
-soundfile==0.13.1
-flask==3.0.0
-flask-cors==4.0.0
-colorama==0.4.6
